@@ -1,5 +1,5 @@
 
-import { Link } from "react-router-dom";
+import Sidebar from "../components/Sidebar";
 
 // 1. Personal Statistics
 const personalStats = [
@@ -155,61 +155,8 @@ function Dashboard() {
     <div className="dashboard-layout">
 
       {/* SIDEBAR */}
-      <aside className="dashboard-sidebar">
-
-        <Link to="/" className="dashboard-logo">
-          <span className="dashboard-logo-icon">S</span>
-          SkillSwap<span className="logo-dot">.</span>
-        </Link>
-
-        <nav className="dashboard-nav">
-
-          <a href="#overview" className="dashboard-nav-link active">
-            <span>⌂</span> Overview
-          </a>
-
-          <a href="#recommended" className="dashboard-nav-link">
-            <span>⌕</span> Discover People
-          </a>
-
-          <a href="#requests" className="dashboard-nav-link">
-            <span>↗</span> My Requests
-          </a>
-
-          <a href="#sessions" className="dashboard-nav-link">
-            <span>▦</span> My Sessions
-          </a>
-
-          <a href="#skills" className="dashboard-nav-link">
-            <span>✦</span> My Skills
-          </a>
-
-         <Link to="/profile" className="dashboard-nav-link">
-            <span>♟</span> My Profile
-          </Link>
-          <a href="#settings" className="dashboard-nav-link">
-            <span>⚙</span> Settings
-          </a>
-
-        </nav>
-
-        <div className="dashboard-sidebar-bottom">
-
-          <Link to="/login" className="dashboard-nav-link">
-            <span>⇥</span> Logout
-          </Link>
-
-          <div className="sidebar-user">
-            <div className="sidebar-avatar">U</div>
-
-            <div>
-              <strong>Demo User</strong>
-              <small>SkillSwap Member</small>
-            </div>
-          </div>
-
-        </div>
-      </aside>
+      {/* SIDEBAR */}
+<Sidebar />
 
       {/* MAIN DASHBOARD */}
       <main className="dashboard-main" id="overview">

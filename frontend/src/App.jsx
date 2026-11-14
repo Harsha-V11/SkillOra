@@ -14,6 +14,15 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Dashboard from "./pages/Dashboard"
 import Profile from "./pages/Profile";
+import Discover from "./pages/Discover";
+import Requests from "./pages/Requests";
+import Sessions from "./pages/Sessions"
+import SessionDetails from "./pages/SessionDetails";
+import Reviews from "./pages/Reviews"
+import TeacherReviews from "./pages/TeacherReviews"
+import WriteReview from "./pages/WriteReview"
+import Settings from "./pages/Settings";
+import MySkills from "./pages/MySkills";
 
 function Home() {
   return (
@@ -78,6 +87,15 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/discover" element={<Discover />} />
+        <Route path="/requests" element={<Requests />} />
+        <Route path="/sessions" element={<Sessions />} />
+        <Route path="/session-details" element={<SessionDetails />} />
+        <Route path="/reviews" element={<Reviews />} />
+        <Route path="/teacher-reviews" element={<TeacherReviews />} />
+        <Route path="/write-review" element={<WriteReview />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/my-skills" element={<MySkills />} />
       </Routes>
 
     </div>
