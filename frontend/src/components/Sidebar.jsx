@@ -1,7 +1,25 @@
 
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 
 function Sidebar() {
+  const navigate = useNavigate();
+
+  // Get the currently logged-in user
+  let user = {};
+
+  try {
+    user = JSON.parse(localStorage.getItem("user")) || {};
+  } catch {
+    user = {};
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    navigate("/login", { replace: true });
+  };
+
   return (
     <aside className="dashboard-sidebar">
       <Link to="/" className="dashboard-logo">
@@ -60,15 +78,22 @@ function Sidebar() {
       </nav>
 
       <div className="dashboard-sidebar-bottom">
-        <Link to="/login" className="dashboard-nav-link">
+        <button
+          type="button"
+          className="dashboard-nav-link"
+          onClick={handleLogout}
+        >
           <span>⇥</span> Logout
-        </Link>
+        </button>
 
         <div className="sidebar-user">
-          <div className="sidebar-avatar">U</div>
+          <div className="sidebar-avatar">
+            {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+          </div>
+
           <div>
-            <strong>Demo User</strong>
-            <small>SkillSwap Member</small>
+            <strong>{user.name || "User"}</strong>
+            <small>{user.email || "SkillSwap Member"}</small>
           </div>
         </div>
       </div>

@@ -1,6 +1,8 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
+
+const API_URL = "http://localhost:5000/api";
 
 const skillCatalogue = {
   Programming: ["HTML", "JavaScript", "React", "Python", "Java", "Node.js"],
@@ -11,118 +13,236 @@ const skillCatalogue = {
   Languages: ["English", "French"],
 };
 
-const defaultTeachSkills = [
-  { name: "React", level: "Advanced" },
-  { name: "JavaScript", level: "Intermediate" },
-  { name: "HTML", level: "Advanced" },
-];
-
-const defaultLearnSkills = ["Python", "UI/UX Design", "Node.js"];
+const allCatalogueSkills = Object.values(skillCatalogue).flat();
 
 function MySkills() {
-  const [teachSkills, setTeachSkills] = useState(() =>
-    JSON.parse(
-      localStorage.getItem("skillswap-teach-skills") ||
-        JSON.stringify(defaultTeachSkills)
-    )
-  );
-
-  const [learnSkills, setLearnSkills] = useState(() =>
-    JSON.parse(
-      localStorage.getItem("skillswap-learn-skills") ||
-        JSON.stringify(defaultLearnSkills)
-    )
-  );
+  const [teachSkills, setTeachSkills] = useState([]);
+  const [learnSkills, setLearnSkills] = useState([]);
 
   const [modalType, setModalType] = useState("");
   const [search, setSearch] = useState("");
   const [selectedSkills, setSelectedSkills] = useState([]);
-  const [saved, setSaved] = useState(false);
 
-  const levels = ["Beginner", "Intermediate", "Advanced", "Expert"];
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [message, setMessage] = useState("");
+
+  // Fetch skills from MongoDB
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchSkills = async () => {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        if (isActive) {
+          setMessage("Please log in to view your skills.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/users/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Unable to fetch skills.");
+        }
+
+        if (isActive) {
+          setTeachSkills(
+            Array.isArray(data.user.teachSkills)
+              ? data.user.teachSkills
+              : []
+          );
+
+          setLearnSkills(
+            Array.isArray(data.user.learnSkills)
+              ? data.user.learnSkills
+              : []
+          );
+        }
+      } catch (error) {
+        if (isActive) {
+          setMessage(error.message);
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchSkills();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // Open the Add Skills popup
   const openSkillModal = (type) => {
     setModalType(type);
     setSearch("");
+
     setSelectedSkills(
       type === "teach"
-        ? teachSkills.map((skill) => skill.name)
+        ? [...teachSkills]
         : [...learnSkills]
     );
   };
 
   // Select or deselect skills inside the popup
   const toggleSelectedSkill = (skill) => {
-    setSelectedSkills((prev) =>
-      prev.includes(skill)
-        ? prev.filter((item) => item !== skill)
-        : [...prev, skill]
+    setSelectedSkills((previous) =>
+      previous.includes(skill)
+        ? previous.filter((item) => item !== skill)
+        : [...previous, skill]
     );
   };
 
   // Add selected skills to the appropriate section
   const confirmSkills = () => {
+    const uniqueSkills = [...new Set(
+      selectedSkills.map((skill) => skill.trim()).filter(Boolean)
+    )];
+
     if (modalType === "teach") {
-      setTeachSkills((prev) => {
-        const existing = [...prev];
-
-        selectedSkills.forEach((skill) => {
-          if (!existing.some((item) => item.name === skill)) {
-            existing.push({ name: skill, level: "Beginner" });
-          }
-        });
-
-        return existing.filter((item) =>
-          selectedSkills.includes(item.name)
-        );
-      });
+      setTeachSkills(uniqueSkills);
     } else {
-      setLearnSkills(selectedSkills);
+      setLearnSkills(uniqueSkills);
     }
 
     setSaved(false);
+    setMessage("");
     setModalType("");
   };
 
+  // Remove teaching skill
   const removeTeachSkill = (skill) => {
-    setTeachSkills((prev) =>
-      prev.filter((item) => item.name !== skill)
+    setTeachSkills((previous) =>
+      previous.filter((item) => item !== skill)
     );
+
     setSaved(false);
+    setMessage("");
   };
 
+  // Remove learning skill
   const removeLearnSkill = (skill) => {
-    setLearnSkills((prev) => prev.filter((item) => item !== skill));
+    setLearnSkills((previous) =>
+      previous.filter((item) => item !== skill)
+    );
+
     setSaved(false);
+    setMessage("");
   };
 
-  const updateLevel = (skill, level) => {
-    setTeachSkills((prev) =>
-      prev.map((item) =>
-        item.name === skill ? { ...item, level } : item
-      )
-    );
+  // Save skills to MongoDB
+  const saveSkills = async () => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setMessage("Please log in again to save your skills.");
+      return;
+    }
+
+    setSaving(true);
     setSaved(false);
+    setMessage("");
+
+    try {
+      const payload = {
+        teachSkills: [...new Set(teachSkills)],
+        learnSkills: [...new Set(learnSkills)],
+      };
+
+      const response = await fetch(`${API_URL}/users/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to save skills.");
+      }
+
+      const updatedTeachSkills = Array.isArray(data.user?.teachSkills)
+        ? data.user.teachSkills
+        : payload.teachSkills;
+
+      const updatedLearnSkills = Array.isArray(data.user?.learnSkills)
+        ? data.user.learnSkills
+        : payload.learnSkills;
+
+      setTeachSkills(updatedTeachSkills);
+      setLearnSkills(updatedLearnSkills);
+
+      setSaved(true);
+      setMessage("Changes saved successfully!");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const saveSkills = () => {
-    localStorage.setItem(
-      "skillswap-teach-skills",
-      JSON.stringify(teachSkills)
+  // Include existing custom skills in the modal.
+  const getModalCategories = () => {
+    const categories = Object.entries(skillCatalogue).map(
+      ([category, skills]) => ({
+        category,
+        skills: skills.filter((skill) =>
+          skill.toLowerCase().includes(search.toLowerCase())
+        ),
+      })
     );
 
-    localStorage.setItem(
-      "skillswap-learn-skills",
-      JSON.stringify(learnSkills)
+    const customSkills = selectedSkills.filter(
+      (skill) => !allCatalogueSkills.includes(skill)
     );
 
-    setSaved(true);
+    if (customSkills.length > 0) {
+      categories.push({
+        category: "Other Skills",
+        skills: customSkills.filter((skill) =>
+          skill.toLowerCase().includes(search.toLowerCase())
+        ),
+      });
+    }
+
+    return categories.filter((item) => item.skills.length > 0);
   };
+
+  if (loading) {
+    return (
+      <div className="dashboard-layout">
+        <Sidebar />
+
+        <main className="dashboard-main">
+          <div className="profile-page my-skills-page">
+            <p>Loading your skills...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-layout">
-      <Sidebar/>
+      <Sidebar />
 
       <main className="dashboard-main">
         <header className="dashboard-header">
@@ -136,6 +256,15 @@ function MySkills() {
               Manage the skills you can teach and the skills you want to learn.
             </p>
           </div>
+
+          {message && (
+            <p
+              className="my-skills-success"
+              role="status"
+            >
+              {message}
+            </p>
+          )}
 
           {/* SKILL SUMMARY */}
           <div className="my-skills-summary">
@@ -166,29 +295,16 @@ function MySkills() {
             <div className="my-skills-selected">
               {teachSkills.length > 0 ? (
                 teachSkills.map((skill) => (
-                  <div className="my-skill-item" key={skill.name}>
+                  <div className="my-skill-item" key={skill}>
                     <div className="my-skill-information">
-                      <strong>{skill.name}</strong>
-                      <small>Teaching proficiency</small>
+                      <strong>{skill}</strong>
+                      <small>Available to teach</small>
                     </div>
-
-                    <select
-                      value={skill.level}
-                      onChange={(e) =>
-                        updateLevel(skill.name, e.target.value)
-                      }
-                    >
-                      {levels.map((level) => (
-                        <option key={level} value={level}>
-                          {level}
-                        </option>
-                      ))}
-                    </select>
 
                     <button
                       type="button"
                       className="my-skill-remove"
-                      onClick={() => removeTeachSkill(skill.name)}
+                      onClick={() => removeTeachSkill(skill)}
                     >
                       Remove
                     </button>
@@ -264,8 +380,9 @@ function MySkills() {
               type="button"
               className="my-skills-save-button"
               onClick={saveSkills}
+              disabled={saving}
             >
-              Save Changes
+              {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </div>
@@ -288,6 +405,7 @@ function MySkills() {
                     ? "Add Teaching Skills"
                     : "Add Learning Skills"}
                 </h2>
+
                 <p>
                   Select the skills you want to{" "}
                   {modalType === "teach" ? "teach" : "learn"}.
@@ -312,43 +430,39 @@ function MySkills() {
             />
 
             <div className="my-skills-modal-content">
-              {Object.entries(skillCatalogue).map(([category, skills]) => {
-                const filteredSkills = skills.filter((skill) =>
-                  skill.toLowerCase().includes(search.toLowerCase())
-                );
+              {getModalCategories().map(({ category, skills }) => (
+                <div
+                  className="my-skills-category"
+                  key={category}
+                >
+                  <h4>{category}</h4>
 
-                if (filteredSkills.length === 0) return null;
-
-                return (
-                  <div className="my-skills-category" key={category}>
-                    <h4>{category}</h4>
-
-                    <div className="my-skills-options">
-                      {filteredSkills.map((skill) => (
-                        <label
-                          className={
-                            selectedSkills.includes(skill)
-                              ? "selected"
-                              : ""
+                  <div className="my-skills-options">
+                    {skills.map((skill) => (
+                      <label
+                        className={
+                          selectedSkills.includes(skill)
+                            ? "selected"
+                            : ""
+                        }
+                        key={skill}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSkills.includes(skill)}
+                          onChange={() =>
+                            toggleSelectedSkill(skill)
                           }
-                          key={skill}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedSkills.includes(skill)}
-                            onChange={() => toggleSelectedSkill(skill)}
-                          />
-                          {skill}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+                        />
 
-              {!Object.values(skillCatalogue).flat().some((skill) =>
-                skill.toLowerCase().includes(search.toLowerCase())
-              ) && (
+                        {skill}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {getModalCategories().length === 0 && (
                 <p className="my-skills-empty">
                   No matching skills found.
                 </p>

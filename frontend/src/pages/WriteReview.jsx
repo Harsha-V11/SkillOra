@@ -1,7 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+
+const API_URL = "http://localhost:5000/api";
 
 function WriteReview() {
   const { state } = useLocation();
@@ -12,25 +14,90 @@ function WriteReview() {
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [validSession, setValidSession] = useState(false);
 
-  if (!session) {
-  return (
-    <div className="dashboard-layout">
-      <Sidebar />
+  const sessionId = session?._id || session?.id;
 
-      <main className="dashboard-main">
-        <div className="profile-page write-review-page">
-          <h2>Write a Review</h2>
-          <p>Select a completed session to write a review.</p>
-          <Link to="/sessions">Back to Sessions</Link>
-        </div>
-      </main>
-    </div>
-  );
-}
+  useEffect(() => {
+    let isMounted = true;
 
-  const handleSubmit = (e) => {
+    const checkReviewEligibility = async () => {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      if (!sessionId) {
+        setChecking(false);
+        return;
+      }
+
+      try {
+        const [sessionResponse, reviewsResponse] = await Promise.all([
+          fetch(`${API_URL}/sessions/${sessionId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/reviews/my`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const sessionData = await sessionResponse.json();
+        const reviewsData = await reviewsResponse.json();
+
+        if (!sessionResponse.ok) {
+          throw new Error(sessionData.message || "Unable to verify session.");
+        }
+
+        if (!reviewsResponse.ok) {
+          throw new Error(reviewsData.message || "Unable to check your reviews.");
+        }
+
+        const currentSession = sessionData.session;
+        const reviews = reviewsData.reviews || [];
+
+        const hasReviewed = reviews.some((review) => {
+          const reference = review.session || review.sessionId;
+          const reviewedId =
+            typeof reference === "object"
+              ? reference?._id || reference?.id
+              : reference;
+
+          return String(reviewedId || "") === String(sessionId);
+        });
+
+        if (isMounted) {
+          setAlreadyReviewed(hasReviewed);
+          setValidSession(currentSession?.status === "completed");
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message || "Unable to verify review eligibility.");
+        }
+      } finally {
+        if (isMounted) {
+          setChecking(false);
+        }
+      }
+    };
+
+    checkReviewEligibility();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sessionId, navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (submitting) return;
 
     if (rating === 0) {
       setError("Please select a star rating.");
@@ -42,31 +109,108 @@ function WriteReview() {
       return;
     }
 
-    const existingReviews = JSON.parse(
-      localStorage.getItem("skillswap-reviews") || "[]"
-    );
+    if (!validSession || alreadyReviewed) {
+      setError("This session is not eligible for another review.");
+      return;
+    }
 
-    const newReview = {
-      id: Date.now(),
-      teacherName: session.name,
-      skill: session.skill,
-      rating,
-      comment: comment.trim(),
-      date: new Date().toLocaleDateString("en-IN"),
-    };
+    const token = localStorage.getItem("token");
 
-    localStorage.setItem(
-      "skillswap-reviews",
-      JSON.stringify([...existingReviews, newReview])
-    );
+    if (!token) {
+      setError("Please log in to submit a review.");
+      return;
+    }
 
-    alert("Your review has been submitted successfully!");
-    navigate("/sessions");
+    try {
+      setSubmitting(true);
+      setError("");
+
+      const response = await fetch(`${API_URL}/reviews`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sessionId,
+          rating,
+          comment: comment.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to submit your review.");
+      }
+
+      setSuccess("Your review has been submitted successfully!");
+      setAlreadyReviewed(true);
+
+      setTimeout(() => {
+        navigate("/sessions");
+      }, 1200);
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (!session) {
+    return (
+      <div className="dashboard-layout">
+        <Sidebar />
+        <main className="dashboard-main">
+          <div className="profile-page write-review-page">
+            <h2>Write a Review</h2>
+            <p>Select a completed session to write a review.</p>
+            <Link to="/sessions">Back to Sessions</Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (checking) {
+    return (
+      <div className="dashboard-layout">
+        <Sidebar />
+        <main className="dashboard-main">
+          <div className="profile-page write-review-page">
+            <p>Checking review eligibility...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!validSession || alreadyReviewed || error) {
+    return (
+      <div className="dashboard-layout">
+        <Sidebar />
+        <main className="dashboard-main">
+          <div className="profile-page write-review-page">
+            <h2>Write a Review</h2>
+
+            {error ? (
+              <p role="alert">{error}</p>
+            ) : alreadyReviewed ? (
+              <p>You have already submitted a review for this session.</p>
+            ) : (
+              <p>Only completed sessions are eligible for reviews.</p>
+            )}
+
+            <Link to="/sessions">Back to Sessions</Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-layout">
-      <Sidebar/>
+      <Sidebar />
 
       <main className="dashboard-main">
         <header className="dashboard-header">
@@ -80,15 +224,22 @@ function WriteReview() {
 
           <div className="write-review-card">
             <h2>Share Your Experience</h2>
+
             <p className="write-review-description">
-              Your feedback helps other learners choose the right teacher.
+              Your feedback helps other members understand the
+              learning experience.
             </p>
 
             <div className="write-review-teacher">
-              <div className="session-avatar">{session.initials}</div>
+              <div className="session-avatar">
+                {session.initials || "U"}
+              </div>
+
               <div>
-                <h3>{session.name}</h3>
-                <p>{session.skill} · {session.date}</p>
+                <h3>{session.name || "SkillSwap Member"}</h3>
+                <p>
+                  {session.skill || "Skill"} · {session.date || "Session"}
+                </p>
               </div>
             </div>
 
@@ -100,6 +251,9 @@ function WriteReview() {
                   <button
                     type="button"
                     key={star}
+                    disabled={submitting}
+                    aria-label={`Rate ${star} out of 5 stars`}
+                    aria-pressed={rating === star}
                     onClick={() => {
                       setRating(star);
                       setError("");
@@ -128,18 +282,34 @@ function WriteReview() {
               <textarea
                 id="review-comment"
                 rows="5"
-                placeholder="Share your experience with this teacher..."
+                placeholder="Share your experience..."
                 value={comment}
+                maxLength={1000}
+                disabled={submitting}
                 onChange={(e) => {
                   setComment(e.target.value);
                   setError("");
                 }}
               />
 
-              {error && <p className="write-review-error">{error}</p>}
+              <p>{comment.length}/1000 characters</p>
 
-              <button type="submit" className="write-review-submit">
-                Submit Review
+              {error && (
+                <p className="write-review-error" role="alert">
+                  {error}
+                </p>
+              )}
+
+              {success && (
+                <p role="status">{success}</p>
+              )}
+
+              <button
+                type="submit"
+                className="write-review-submit"
+                disabled={submitting || Boolean(success)}
+              >
+                {submitting ? "Submitting..." : "Submit Review"}
               </button>
             </form>
           </div>

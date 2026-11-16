@@ -1,12 +1,62 @@
-import { Link } from 'react-router-dom'
+
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 function Login() {
+  const navigate = useNavigate();
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed");
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      navigate("/dashboard");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-page">
-
-      {/* LEFT SIDE - PURPLE BRANDING */}
       <section className="auth-brand-section">
-
         <Link to="/" className="auth-brand-logo">
           SkillSwap<span>.</span>
         </Link>
@@ -27,7 +77,6 @@ function Login() {
           </p>
         </div>
 
-        {/* FLOATING SKILL CARDS */}
         <div className="floating-card skill-card-one">
           <span className="floating-card-label">✦ Programming</span>
           <h3>React Development</h3>
@@ -50,29 +99,25 @@ function Login() {
         <div className="auth-brand-footer">
           Learn something new. Teach something valuable.
         </div>
-
       </section>
 
-
-      {/* RIGHT SIDE - LOGIN FORM */}
       <section className="auth-form-section">
-
         <div className="auth-form-wrapper">
-
           <div className="auth-form-heading">
             <h2>Welcome back!</h2>
             <p>Pick up right where you left off.</p>
           </div>
 
-          <form className="auth-form">
-
+          <form className="auth-form" onSubmit={handleSubmit}>
             <div className="auth-input-group">
               <label htmlFor="email">Email Address</label>
-
               <input
                 type="email"
                 id="email"
+                name="email"
                 placeholder="you@example.com"
+                value={formData.email}
+                onChange={handleChange}
                 required
               />
             </div>
@@ -80,7 +125,6 @@ function Login() {
             <div className="auth-input-group">
               <div className="auth-password-heading">
                 <label htmlFor="password">Password</label>
-
                 <Link to="/forgot-password">
                   Forgot password?
                 </Link>
@@ -89,15 +133,27 @@ function Login() {
               <input
                 type="password"
                 id="password"
+                name="password"
                 placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleChange}
                 required
               />
             </div>
 
-            <button type="submit" className="auth-submit-button">
-              Log in
-            </button>
+            {message && (
+              <p className="register-message" role="alert">
+                {message}
+              </p>
+            )}
 
+            <button
+              type="submit"
+              className="auth-submit-button"
+              disabled={loading}
+            >
+              {loading ? "Logging in..." : "Log in"}
+            </button>
           </form>
 
           <p className="auth-register-text">
@@ -108,13 +164,10 @@ function Login() {
           <Link to="/" className="auth-home-link">
             ← Back to SkillSwap
           </Link>
-
         </div>
-
       </section>
-
     </div>
-  )
+  );
 }
 
-export default Login
+export default Login;

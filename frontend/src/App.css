@@ -3194,11 +3194,17 @@
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
+
 .discover-view-button {
   border: 1px solid var(--profile-border);
   background: transparent;
   color: var(--profile-text);
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
 }
+
 
 .discover-view-button:hover {
   background: var(--profile-bg);
